@@ -2,13 +2,15 @@
 
 A self-contained NestJS + Prisma (SQLite) app that mimics a production "submit a
 candidate to a role" flow. Your task as the QA candidate is to **write automated
-tests** against it — API-level (Jest + supertest) and E2E against the thin UI
-(Playwright). This repo ships the app, a deterministic seed, and test-support
-endpoints. It does **not** ship any tests — those are yours to write.
+tests** against it — both at the API level and end-to-end against the thin UI.
+This repo ships the app, a deterministic seed, and test-support endpoints. It does
+**not** ship any tests or a test runner — **choosing and setting up your own
+testing stack is part of the exercise** (e.g. Jest + supertest for the API,
+Playwright or Cypress for E2E — your call).
 
 The implementation is a clean reference: there are no planted bugs. You're being
-evaluated on the coverage, correctness, and clarity of the tests you write against
-the spec below.
+evaluated on your choice of tooling and on the coverage, correctness, and clarity
+of the tests you write against the spec below.
 
 ## Run it
 
