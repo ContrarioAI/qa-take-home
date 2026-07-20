@@ -12,15 +12,17 @@ the spec below.
 
 ## Run it
 
+One command sets everything up from a clean clone (installs deps, generates the
+Prisma client, creates the SQLite schema, and seeds deterministic data):
+
 ```bash
-npm install          # also runs `prisma generate`
-npm run db:reset     # create the SQLite schema + seed deterministic data
-npm run start        # API on http://localhost:3000, form at http://localhost:3000/
+./setup.sh        # or: npm run setup
+npm start         # API on http://localhost:3000, form at http://localhost:3000/
 ```
 
-`npm run db:reset` is destructive (it force-resets the DB). Re-run it any time to
-get back to a clean slate from the shell. During tests, use `POST /test/reset`
-instead (below).
+`npm run db:reset` is destructive (it force-resets + re-seeds the DB). Re-run it any
+time to get back to a clean slate from the shell. During tests, use `POST /test/reset`
+instead (below) — same deterministic state, no process restart needed.
 
 ## Endpoints
 

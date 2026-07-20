@@ -5,6 +5,7 @@
   "license": "UNLICENSED",
   "scripts": {
     "postinstall": "prisma generate",
+    "setup": "npm install && npm run db:reset",
     "build": "nest build",
     "start": "nest start",
     "start:dev": "nest start --watch",
