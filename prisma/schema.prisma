@@ -1,0 +1,111 @@
+// SQLite does not support Prisma enums, so status/source are plain strings.
+// See README for the allowed values.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                    String  @id
+  isRecruiter           Boolean @default(false)
+  agencyId              String?
+  selfServe             Boolean @default(false)
+  autoApprove           Boolean @default(false)
+  useRoleApprovalBypass Boolean @default(false)
+  bypassQuota           Int     @default(0)
+
+  roleAccess           RecruiterRoleAccess[]
+  recruiterCandidates  RecruiterCandidate[]
+  submissions          CandidateSubmission[]
+}
+
+model Company {
+  id                            String  @id
+  autoApproveAfterAdminApproval Boolean @default(false)
+
+  jobs        Job[]
+  submissions CandidateSubmission[]
+}
+
+model Job {
+  id               String    @id
+  companyId        String
+  active           Boolean   @default(true)
+  deletedAt        DateTime?
+  exclusivityStart DateTime?
+  exclusivityEnd   DateTime?
+  source           String    @default("internal") // "internal" | "kombo"
+
+  company     Company               @relation(fields: [companyId], references: [id])
+  roleAccess  RecruiterRoleAccess[]
+  submissions CandidateSubmission[]
+}
+
+// Direct role access join: which recruiter can submit directly to which job.
+model RecruiterRoleAccess {
+  id          Int    @id @default(autoincrement())
+  recruiterId String
+  jobId       String
+
+  recruiter User @relation(fields: [recruiterId], references: [id])
+  job       Job  @relation(fields: [jobId], references: [id])
+
+  @@unique([recruiterId, jobId])
+}
+
+// The recruiter's own candidate record (find-or-create by id/linkedin).
+model RecruiterCandidate {
+  id          String  @id
+  recruiterId String
+  name        String
+  email       String
+  linkedin    String?
+  resumeUrl   String?
+  status      String  @default("new") // "new" | "submitted"
+
+  recruiter User @relation(fields: [recruiterId], references: [id])
+}
+
+// A fresh snapshot created per submission.
+model CandidateProfile {
+  id           String  @id
+  name         String
+  email        String  // stored lowercased for calendar-webhook matching
+  linkedin     String?
+  resumeUpload String?
+
+  submission CandidateSubmission?
+}
+
+model CandidateSubmission {
+  id                   String   @id
+  candidateProfileId   String   @unique
+  jobId                String
+  companyId            String
+  agencyId             String?
+  recruiterId          String
+  status               String   @default("PENDING_ADMIN_APPROVAL")
+  notes                String?
+  filteredAnswers      String   @default("[]") // JSON string
+  isRoleApprovalBypass Boolean  @default(false)
+  createdAt            DateTime @default(now())
+
+  candidateProfile CandidateProfile @relation(fields: [candidateProfileId], references: [id])
+  job              Job              @relation(fields: [jobId], references: [id])
+  company          Company          @relation(fields: [companyId], references: [id])
+  recruiter        User             @relation(fields: [recruiterId], references: [id])
+  stages           CandidateStage[]
+}
+
+model CandidateStage {
+  id           String @id @default(uuid())
+  submissionId String
+  stageName    String
+
+  submission CandidateSubmission @relation(fields: [submissionId], references: [id])
+}
