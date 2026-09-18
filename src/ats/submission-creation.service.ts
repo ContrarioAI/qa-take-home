@@ -109,9 +109,7 @@ export class SubmissionCreationService {
         }
         usedBypass = true;
       } else {
-        throw new ForbiddenException(
-          user.agencyId ? MESSAGES.NO_ACCESS_AGENCY : MESSAGES.NO_ACCESS_SELF,
-        );
+        throw new ForbiddenException(MESSAGES.NO_ACCESS_SELF);
       }
     }
 
