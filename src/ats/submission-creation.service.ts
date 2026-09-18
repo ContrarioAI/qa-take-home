@@ -95,12 +95,7 @@ export class SubmissionCreationService {
     });
     const hasDirectAccess = !!directAccess;
 
-    // 4b. Role-exclusivity guard (THIS is the PR #232 guard) — runs unconditionally.
-    if (!hasDirectAccess && this.isJobExclusivityActive(job)) {
-      throw new ForbiddenException(MESSAGES.EXCLUSIVE);
-    }
-
-    // 4c. Standard access + bypass quota.
+    // BUG-03: bypass quota is evaluated before exclusivity, so bypass can override exclusive roles.
     let usedBypass = false;
     if (!hasDirectAccess) {
       if (user.useRoleApprovalBypass) {
@@ -108,6 +103,8 @@ export class SubmissionCreationService {
           throw new ForbiddenException(MESSAGES.BYPASS_EXHAUSTED);
         }
         usedBypass = true;
+      } else if (this.isJobExclusivityActive(job)) {
+        throw new ForbiddenException(MESSAGES.EXCLUSIVE);
       } else {
         throw new ForbiddenException(MESSAGES.NO_ACCESS_SELF);
       }
