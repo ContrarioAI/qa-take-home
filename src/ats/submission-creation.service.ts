@@ -119,6 +119,9 @@ export class SubmissionCreationService {
       throw new ConflictException(MESSAGES.COLLISION);
     }
 
+    // BUG-10: widen the gap between collision check and insert for concurrent requests.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
     const profileId = uuidv4();
     const submissionId = uuidv4();
     let submission;
