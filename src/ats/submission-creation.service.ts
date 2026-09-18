@@ -245,8 +245,8 @@ export class SubmissionCreationService {
         throw new BadRequestException(MESSAGES.ANSWER_TOO_LONG);
       }
     }
-    // INFORMATION-type answers are dropped; the rest are persisted.
-    return answers.filter((a) => a.type !== 'INFORMATION');
+    // BUG-01: INFORMATION-type answers are persisted instead of being dropped.
+    return answers;
   }
 
   private async findOrCreateRecruiterCandidate(recruiterId: string, dto: SubmitCandidateDto) {
