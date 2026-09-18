@@ -8,7 +8,8 @@ This branch contains the frontend QA surface, a baseline hardening commit, and e
 |---|---|
 | `e6069b9` | Expand the frontend for QA flow coverage |
 | `fcf0d31` | Harden pre-existing collision and bypass-quota races |
-| `4f33c9b` through `f3efe05` | One commit per seeded defect |
+| `4f33c9b` through `f3efe05` | Primary seeded defects, one primary commit each |
+| `459c480` | Make BUG-10 reliably reproducible from the concurrent-submit control |
 | This commit | Add this story, acceptance-criteria, impact, and fix guide |
 
 The baseline hardening commit is intentional: the original reference implementation allowed two concurrent bypass submissions with one remaining quota and allowed concurrent duplicates. Those behaviors were corrected before the corresponding seeded regressions were added.
@@ -309,11 +310,11 @@ Each defect uses `Identify / Recreate / Fix` difficulty:
 
 ### BUG-10 — Concurrent duplicate submissions both succeed
 
-- **Commit:** `39a2fd1`
+- **Commits:** `39a2fd1`, `459c480`
 - **User story:** Story 13 — Prevent duplicate submissions
 - **Category:** Concurrency/data integrity
 - **Difficulty:** Hard / Hard / Medium
-- **Introduced at:** `src/ats/submission-creation.service.ts:110-119`; `prisma/schema.prisma:85-105`
+- **Introduced at:** `src/ats/submission-creation.service.ts:110-123`; `prisma/schema.prisma:85-105`
 - **Frontend reproduction:** Fill one candidate form and click **Submit twice concurrently**.
 - **Expected:** Exactly one request succeeds and the other returns `409`.
 - **Actual:** Both requests can return `200` and create separate submissions.
