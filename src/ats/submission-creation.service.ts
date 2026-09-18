@@ -148,18 +148,15 @@ export class SubmissionCreationService {
           },
         });
 
-        if (usedBypass) {
-          const quota = await tx.user.updateMany({
-            where: { id: user.id, bypassQuota: { gt: 0 } },
-            data: { bypassQuota: { decrement: 1 } },
-          });
-          if (quota.count !== 1) {
-            throw new PersistBypassExhaustedError();
-          }
-        }
-
         return created;
       });
+      // BUG-09: decrementing after the transaction lets concurrent requests use the same quota.
+      if (usedBypass) {
+        await this.prisma.user.update({
+          where: { id: user.id },
+          data: { bypassQuota: { decrement: 1 } },
+        });
+      }
     } catch (err: any) {
       const uniqueConstraint = String(err?.code ?? '') === 'P2002'
         && Array.isArray(err?.meta?.target)
