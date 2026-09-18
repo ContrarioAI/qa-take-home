@@ -102,7 +102,6 @@ model CandidateSubmission {
   recruiter        User             @relation(fields: [recruiterId], references: [id])
   stages           CandidateStage[]
 
-  @@unique([jobId, candidateEmail])
 }
 
 model CandidateStage {

@@ -27,9 +27,6 @@ export const MESSAGES = {
   COLLISION: 'This candidate has already been submitted to this role.',
 };
 
-class PersistConflictError extends Error {}
-class PersistBypassExhaustedError extends Error {}
-
 @Injectable()
 export class SubmissionCreationService {
   private readonly logger = new Logger(SubmissionCreationService.name);
@@ -110,19 +107,23 @@ export class SubmissionCreationService {
       }
     }
 
-    // --- Step 5/6: persist atomically, including collision and bypass-quota checks ---
+    // BUG-10: collision is checked before the transaction, allowing concurrent requests to pass together.
+    const collision = await this.prisma.candidateSubmission.findFirst({
+      where: { jobId: job.id, candidateEmail: identity.email },
+    });
+    if (collision) {
+      this.analytics.track('api_candidate_submission_collision', rc.recruiterId, {
+        jobId: job.id,
+        email: identity.email,
+      });
+      throw new ConflictException(MESSAGES.COLLISION);
+    }
+
     const profileId = uuidv4();
     const submissionId = uuidv4();
     let submission;
     try {
       submission = await this.prisma.$transaction(async (tx) => {
-        const collision = await tx.candidateSubmission.findFirst({
-          where: { jobId: job.id, candidateEmail: identity.email },
-        });
-        if (collision) {
-          throw new PersistConflictError();
-        }
-
         await tx.candidateProfile.create({
           data: {
             id: profileId,
@@ -132,7 +133,7 @@ export class SubmissionCreationService {
             resumeUpload: identity.resumeUrl,
           },
         });
-        const created = await tx.candidateSubmission.create({
+        return tx.candidateSubmission.create({
           data: {
             id: submissionId,
             candidateProfileId: profileId,
@@ -147,8 +148,6 @@ export class SubmissionCreationService {
             isRoleApprovalBypass: usedBypass,
           },
         });
-
-        return created;
       });
       // BUG-09: decrementing after the transaction lets concurrent requests use the same quota.
       if (usedBypass) {
@@ -158,20 +157,6 @@ export class SubmissionCreationService {
         });
       }
     } catch (err: any) {
-      const uniqueConstraint = String(err?.code ?? '') === 'P2002'
-        && Array.isArray(err?.meta?.target)
-        && err.meta.target.includes('jobId')
-        && err.meta.target.includes('candidateEmail');
-      if (err instanceof PersistConflictError || uniqueConstraint) {
-        this.analytics.track('api_candidate_submission_collision', rc.recruiterId, {
-          jobId: job.id,
-          email: identity.email,
-        });
-        throw new ConflictException(MESSAGES.COLLISION);
-      }
-      if (err instanceof PersistBypassExhaustedError) {
-        throw new ForbiddenException(MESSAGES.BYPASS_EXHAUSTED);
-      }
       throw err;
     }
 
