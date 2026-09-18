@@ -76,9 +76,9 @@ export class SubmissionCreationService {
 
     // --- Step 3: identity + agency context (identity pulled from the RC row) ---
     const identity = {
-      name: rc.name,
-      email: rc.email.toLowerCase(),
-      linkedin: rc.linkedin,
+      name: dto.candidate.name ?? rc.name,
+      email: (dto.candidate.email ?? rc.email).toLowerCase(),
+      linkedin: dto.candidate.linkedin ?? rc.linkedin,
       resumeUrl: resumeOnFile,
     };
     const agencyId = user.agencyId ?? null;
