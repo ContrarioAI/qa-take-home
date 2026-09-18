@@ -73,9 +73,9 @@ export class SubmissionCreationService {
 
     // --- Step 3: identity + agency context (identity pulled from the RC row) ---
     const identity = {
-      name: rc.name,
-      email: rc.email.toLowerCase(),
-      linkedin: rc.linkedin,
+      name: dto.candidate.name ?? rc.name,
+      email: (dto.candidate.email ?? rc.email).toLowerCase(),
+      linkedin: dto.candidate.linkedin ?? rc.linkedin,
       resumeUrl: resumeOnFile,
     };
     const agencyId = user.agencyId ?? null;
@@ -92,12 +92,7 @@ export class SubmissionCreationService {
     });
     const hasDirectAccess = !!directAccess;
 
-    // 4b. Role-exclusivity guard (THIS is the PR #232 guard) — runs unconditionally.
-    if (!hasDirectAccess && this.isJobExclusivityActive(job)) {
-      throw new ForbiddenException(MESSAGES.EXCLUSIVE);
-    }
-
-    // 4c. Standard access + bypass quota.
+    // BUG-03: bypass quota is evaluated before exclusivity, so bypass can override exclusive roles.
     let usedBypass = false;
     if (!hasDirectAccess) {
       if (user.useRoleApprovalBypass) {
@@ -105,62 +100,67 @@ export class SubmissionCreationService {
           throw new ForbiddenException(MESSAGES.BYPASS_EXHAUSTED);
         }
         usedBypass = true;
+      } else if (this.isJobExclusivityActive(job)) {
+        throw new ForbiddenException(MESSAGES.EXCLUSIVE);
       } else {
-        throw new ForbiddenException(
-          user.agencyId ? MESSAGES.NO_ACCESS_AGENCY : MESSAGES.NO_ACCESS_SELF,
-        );
+        throw new ForbiddenException(MESSAGES.NO_ACCESS_SELF);
       }
     }
 
-    // --- Step 5: collision check (DB only) ---
+    // BUG-10: collision is checked before the transaction, allowing concurrent requests to pass together.
     const collision = await this.prisma.candidateSubmission.findFirst({
-      where: {
-        jobId: job.id,
-        candidateProfile: { email: identity.email },
-      },
+      where: { jobId: job.id, candidateEmail: identity.email },
     });
     if (collision) {
-      this.analytics.track('api_candidate_submission_collision', user.id, {
+      this.analytics.track('api_candidate_submission_collision', rc.recruiterId, {
         jobId: job.id,
         email: identity.email,
       });
       throw new ConflictException(MESSAGES.COLLISION);
     }
 
-    // --- Step 6: persist (transaction rolls back the profile if the submission fails) ---
+    // BUG-10: widen the gap between collision check and insert for concurrent requests.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
     const profileId = uuidv4();
     const submissionId = uuidv4();
-    const submission = await this.prisma.$transaction(async (tx) => {
-      await tx.candidateProfile.create({
-        data: {
-          id: profileId,
-          name: identity.name,
-          email: identity.email, // already lowercased
-          linkedin: identity.linkedin,
-          resumeUpload: identity.resumeUrl,
-        },
+    let submission;
+    try {
+      submission = await this.prisma.$transaction(async (tx) => {
+        await tx.candidateProfile.create({
+          data: {
+            id: profileId,
+            name: identity.name,
+            email: identity.email, // already lowercased
+            linkedin: identity.linkedin,
+            resumeUpload: identity.resumeUrl,
+          },
+        });
+        return tx.candidateSubmission.create({
+          data: {
+            id: submissionId,
+            candidateProfileId: profileId,
+            jobId: job.id,
+            companyId: job.companyId,
+            agencyId,
+            recruiterId: user.id,
+            candidateEmail: identity.email,
+            status: 'PENDING_ADMIN_APPROVAL',
+            notes: dto.notes ?? null,
+            filteredAnswers: JSON.stringify(filteredAnswers),
+            isRoleApprovalBypass: usedBypass,
+          },
+        });
       });
-      return tx.candidateSubmission.create({
-        data: {
-          id: submissionId,
-          candidateProfileId: profileId,
-          jobId: job.id,
-          companyId: job.companyId,
-          agencyId,
-          recruiterId: user.id,
-          status: 'PENDING_ADMIN_APPROVAL',
-          notes: dto.notes ?? null,
-          filteredAnswers: JSON.stringify(filteredAnswers),
-          isRoleApprovalBypass: usedBypass,
-        },
-      });
-    });
-
-    if (usedBypass) {
-      await this.prisma.user.update({
-        where: { id: user.id },
-        data: { bypassQuota: { decrement: 1 } },
-      });
+      // BUG-09: decrementing after the transaction lets concurrent requests use the same quota.
+      if (usedBypass) {
+        await this.prisma.user.update({
+          where: { id: user.id },
+          data: { bypassQuota: { decrement: 1 } },
+        });
+      }
+    } catch (err: any) {
+      throw err;
     }
 
     // --- Step 7: post-persist syncs (best-effort) ---
@@ -172,10 +172,9 @@ export class SubmissionCreationService {
     } catch (err: any) {
       this.logger.warn(`RC status sync failed: ${err.message}`);
     }
+    // BUG-07: skip creating the Application Review stage after a successful persist.
     try {
-      await this.prisma.candidateStage.create({
-        data: { submissionId: submission.id, stageName: 'Application Review' },
-      });
+      this.logger.warn('Interview-stage sync skipped');
     } catch (err: any) {
       this.logger.warn(`Interview-stage sync failed: ${err.message}`);
     }
@@ -225,8 +224,8 @@ export class SubmissionCreationService {
         throw new BadRequestException(MESSAGES.ANSWER_TOO_LONG);
       }
     }
-    // INFORMATION-type answers are dropped; the rest are persisted.
-    return answers.filter((a) => a.type !== 'INFORMATION');
+    // BUG-01: INFORMATION-type answers are persisted instead of being dropped.
+    return answers;
   }
 
   private async findOrCreateRecruiterCandidate(recruiterId: string, dto: SubmitCandidateDto) {
@@ -241,7 +240,7 @@ export class SubmissionCreationService {
 
     if (candidate.linkedin) {
       const byLinkedin = await this.prisma.recruiterCandidate.findFirst({
-        where: { recruiterId, linkedin: candidate.linkedin },
+        where: { linkedin: candidate.linkedin },
       });
       if (byLinkedin) return byLinkedin;
     }

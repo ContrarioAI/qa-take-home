@@ -5,13 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>ATS — Submit Candidate</title>
     <style>
-      body { font-family: system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; }
+      body { font-family: system-ui, sans-serif; max-width: 760px; margin: 2rem auto; padding: 0 1rem; }
       h1 { font-size: 1.25rem; }
+      h2 { margin-top: 2rem; }
       label { display: block; margin: 0.75rem 0 0.25rem; font-weight: 600; font-size: 0.9rem; }
       input, select, textarea { width: 100%; padding: 0.5rem; box-sizing: border-box; }
-      button { margin-top: 1rem; padding: 0.6rem 1.2rem; font-size: 1rem; cursor: pointer; }
+      button { margin: 0.75rem 0.5rem 0 0; padding: 0.6rem 1.2rem; font-size: 1rem; cursor: pointer; }
+      .answer-row { display: grid; grid-template-columns: 10rem 1fr auto; gap: 0.5rem; align-items: start; margin-bottom: 0.5rem; }
+      .answer-row button { margin-top: 0; }
+      .qa-controls { border-top: 1px solid #ccc; margin-top: 2rem; padding-top: 1rem; }
       pre { background: #f4f4f4; padding: 1rem; overflow: auto; white-space: pre-wrap; }
       .status { font-weight: 700; }
+      @media (max-width: 640px) {
+        .answer-row { grid-template-columns: 1fr; }
+      }
     </style>
   </head>
   <body>
@@ -37,6 +44,9 @@
       <option value="job_kombo">job_kombo</option>
     </select>
 
+    <label for="candidateId">Candidate ID (optional)</label>
+    <input id="candidateId" placeholder="e.g. rc_with_resume" />
+
     <label for="name">Candidate name</label>
     <input id="name" value="Alan Turing" />
 
@@ -46,50 +56,39 @@
     <label for="linkedin">LinkedIn</label>
     <input id="linkedin" value="https://linkedin.com/in/alan" />
 
-    <label for="resumeTempKey">Résumé temp key (leave blank to rely on résumé on file)</label>
+    <label for="resumeUrl">Résumé URL on file (optional)</label>
+    <input id="resumeUrl" placeholder="https://..." />
+
+    <label for="resumeTempKey">Résumé temp key (optional)</label>
     <input id="resumeTempKey" value="temp-bucket/upload-123.pdf" />
 
-    <label for="answer">Screening answer</label>
-    <textarea id="answer" rows="3">I have 5 years of experience.</textarea>
+    <label for="resumeFileName">Résumé file name</label>
+    <input id="resumeFileName" value="resume.pdf" />
 
-    <button id="submit">Submit</button>
+    <label for="notes">Notes (optional)</label>
+    <textarea id="notes" rows="2"></textarea>
+
+    <label>Screening answers</label>
+    <div id="answerRows"></div>
+    <button type="button" id="addAnswer">Add answer</button>
+
+    <div>
+      <button type="button" id="submit">Submit</button>
+      <button type="button" id="submitConcurrent">Submit twice concurrently</button>
+    </div>
 
     <h2>Result</h2>
     <p class="status" id="status"></p>
     <pre id="result"></pre>
 
-    <script>
-      document.getElementById('submit').addEventListener('click', async () => {
-        const userId = document.getElementById('userId').value;
-        const body = {
-          jobId: document.getElementById('jobId').value,
-          candidate: {
-            name: document.getElementById('name').value,
-            email: document.getElementById('email').value,
-            linkedin: document.getElementById('linkedin').value || undefined,
-            resumeTempKey: document.getElementById('resumeTempKey').value || undefined,
-            resumeFileName: 'resume.pdf',
-          },
-          screeningAnswers: [
-            { type: 'QUESTION', answer: document.getElementById('answer').value },
-          ],
-        };
-        const statusEl = document.getElementById('status');
-        const resultEl = document.getElementById('result');
-        try {
-          const res = await fetch('/ats/submit-candidate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-user-id': userId },
-            body: JSON.stringify(body),
-          });
-          statusEl.textContent = 'HTTP ' + res.status;
-          const json = await res.json();
-          resultEl.textContent = JSON.stringify(json, null, 2);
-        } catch (err) {
-          statusEl.textContent = 'Request failed';
-          resultEl.textContent = String(err);
-        }
-      });
-    </script>
+    <section class="qa-controls" aria-label="QA inspection controls">
+      <h2>QA controls</h2>
+      <button type="button" id="resetTestState">Reset test data</button>
+      <button type="button" id="inspectSubmission">Inspect submission</button>
+      <button type="button" id="refreshRecorders">Refresh recorders and wait</button>
+      <pre id="inspection"></pre>
+    </section>
+
+    <script type="module" src="/form.mjs"></script>
   </body>
 </html>

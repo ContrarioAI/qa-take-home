@@ -89,6 +89,7 @@ model CandidateSubmission {
   companyId            String
   agencyId             String?
   recruiterId          String
+  candidateEmail       String
   status               String   @default("PENDING_ADMIN_APPROVAL")
   notes                String?
   filteredAnswers      String   @default("[]") // JSON string
@@ -100,6 +101,7 @@ model CandidateSubmission {
   company          Company          @relation(fields: [companyId], references: [id])
   recruiter        User             @relation(fields: [recruiterId], references: [id])
   stages           CandidateStage[]
+
 }
 
 model CandidateStage {

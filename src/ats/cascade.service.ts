@@ -29,9 +29,8 @@ export class CascadeService {
 
   /** Test-only: await every scheduled cascade so recorder assertions are race-free. */
   async flush(): Promise<void> {
-    const inflight = this.pending;
+    // BUG-11: clear pending work without waiting for the cascade to finish.
     this.pending = [];
-    await Promise.allSettled(inflight);
   }
 
   private async run(submissionId: string): Promise<void> {
@@ -77,7 +76,7 @@ export class CascadeService {
     this.slack.sendCandidateIntro({
       companyId: submission.companyId,
       candidateId: submission.candidateProfileId,
-      hasActionButtons: !submission.company.autoApproveAfterAdminApproval,
+      hasActionButtons: submission.company.autoApproveAfterAdminApproval,
     });
 
     // If company auto-approves after admin approval, cascade further to APPROVED.

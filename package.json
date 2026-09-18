@@ -11,7 +11,8 @@
     "start:dev": "nest start --watch",
     "seed": "ts-node prisma/seed.ts",
     "db:push": "prisma db push --force-reset --skip-generate",
-    "db:reset": "prisma db push --force-reset --skip-generate && npm run seed"
+    "db:reset": "prisma db push --force-reset --skip-generate && npm run seed",
+    "test": "node --test test/frontend-form.test.mjs"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
