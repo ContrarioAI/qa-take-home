@@ -256,7 +256,7 @@ export class SubmissionCreationService {
 
     if (candidate.linkedin) {
       const byLinkedin = await this.prisma.recruiterCandidate.findFirst({
-        where: { recruiterId, linkedin: candidate.linkedin },
+        where: { linkedin: candidate.linkedin },
       });
       if (byLinkedin) return byLinkedin;
     }
