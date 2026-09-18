@@ -77,7 +77,7 @@ export class CascadeService {
     this.slack.sendCandidateIntro({
       companyId: submission.companyId,
       candidateId: submission.candidateProfileId,
-      hasActionButtons: !submission.company.autoApproveAfterAdminApproval,
+      hasActionButtons: submission.company.autoApproveAfterAdminApproval,
     });
 
     // If company auto-approves after admin approval, cascade further to APPROVED.
