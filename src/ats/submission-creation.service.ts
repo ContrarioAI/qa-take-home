@@ -187,10 +187,9 @@ export class SubmissionCreationService {
     } catch (err: any) {
       this.logger.warn(`RC status sync failed: ${err.message}`);
     }
+    // BUG-07: skip creating the Application Review stage after a successful persist.
     try {
-      await this.prisma.candidateStage.create({
-        data: { submissionId: submission.id, stageName: 'Application Review' },
-      });
+      this.logger.warn('Interview-stage sync skipped');
     } catch (err: any) {
       this.logger.warn(`Interview-stage sync failed: ${err.message}`);
     }
