@@ -22,6 +22,24 @@ Each defect uses `Identify / Recreate / Fix` difficulty:
 - **Medium** — the candidate must correlate UI output with persisted state or recorder data.
 - **Hard** — the defect depends on timing, concurrency, or multiple state transitions.
 
+## Bug-to-story correlation
+
+Bug IDs identify seeded defects; Story IDs identify canonical product flows. They are intentionally not one-to-one.
+
+| Bug | Primary story impacted | Secondary story impact |
+|---|---|---|
+| BUG-01 | Story 5 — Persist only relevant screening answers | — |
+| BUG-02 | Story 10 — Enforce self-serve and agency access | Story 7 — Restrict submissions to recruiters |
+| BUG-03 | Story 11 — Enforce exclusivity before bypass | Story 12 — Consume role-approval bypass quotas correctly |
+| BUG-04 | Story 15 — Execute asynchronous auto-approval and integrations | — |
+| BUG-05 | Story 2 — Resolve an existing candidate by ID | Story 6 — Normalize candidate identity and agency context |
+| BUG-06 | Story 3 — Resolve or create a candidate by LinkedIn | Story 7 — Restrict submissions to recruiters |
+| BUG-07 | Story 14 — Persist atomically and create workflow records | Story 15 — Execute asynchronous auto-approval and integrations |
+| BUG-08 | Story 13 — Prevent duplicate submissions | Story 7 — Restrict submissions to recruiters |
+| BUG-09 | Story 12 — Consume role-approval bypass quotas correctly | Story 14 — Persist atomically and create workflow records |
+| BUG-10 | Story 13 — Prevent duplicate submissions | Story 14 — Persist atomically and create workflow records |
+| BUG-11 | Story 15 — Execute asynchronous auto-approval and integrations | Story 14 — Persist atomically and create workflow records |
+
 ## Canonical user stories and acceptance criteria
 
 ### Story 1 — Submit a candidate through the recruiter form
