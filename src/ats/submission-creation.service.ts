@@ -27,6 +27,9 @@ export const MESSAGES = {
   COLLISION: 'This candidate has already been submitted to this role.',
 };
 
+class PersistConflictError extends Error {}
+class PersistBypassExhaustedError extends Error {}
+
 @Injectable()
 export class SubmissionCreationService {
   private readonly logger = new Logger(SubmissionCreationService.name);
@@ -112,55 +115,72 @@ export class SubmissionCreationService {
       }
     }
 
-    // --- Step 5: collision check (DB only) ---
-    const collision = await this.prisma.candidateSubmission.findFirst({
-      where: {
-        jobId: job.id,
-        candidateProfile: { email: identity.email },
-      },
-    });
-    if (collision) {
-      this.analytics.track('api_candidate_submission_collision', user.id, {
-        jobId: job.id,
-        email: identity.email,
-      });
-      throw new ConflictException(MESSAGES.COLLISION);
-    }
-
-    // --- Step 6: persist (transaction rolls back the profile if the submission fails) ---
+    // --- Step 5/6: persist atomically, including collision and bypass-quota checks ---
     const profileId = uuidv4();
     const submissionId = uuidv4();
-    const submission = await this.prisma.$transaction(async (tx) => {
-      await tx.candidateProfile.create({
-        data: {
-          id: profileId,
-          name: identity.name,
-          email: identity.email, // already lowercased
-          linkedin: identity.linkedin,
-          resumeUpload: identity.resumeUrl,
-        },
-      });
-      return tx.candidateSubmission.create({
-        data: {
-          id: submissionId,
-          candidateProfileId: profileId,
-          jobId: job.id,
-          companyId: job.companyId,
-          agencyId,
-          recruiterId: user.id,
-          status: 'PENDING_ADMIN_APPROVAL',
-          notes: dto.notes ?? null,
-          filteredAnswers: JSON.stringify(filteredAnswers),
-          isRoleApprovalBypass: usedBypass,
-        },
-      });
-    });
+    let submission;
+    try {
+      submission = await this.prisma.$transaction(async (tx) => {
+        const collision = await tx.candidateSubmission.findFirst({
+          where: { jobId: job.id, candidateEmail: identity.email },
+        });
+        if (collision) {
+          throw new PersistConflictError();
+        }
 
-    if (usedBypass) {
-      await this.prisma.user.update({
-        where: { id: user.id },
-        data: { bypassQuota: { decrement: 1 } },
+        await tx.candidateProfile.create({
+          data: {
+            id: profileId,
+            name: identity.name,
+            email: identity.email, // already lowercased
+            linkedin: identity.linkedin,
+            resumeUpload: identity.resumeUrl,
+          },
+        });
+        const created = await tx.candidateSubmission.create({
+          data: {
+            id: submissionId,
+            candidateProfileId: profileId,
+            jobId: job.id,
+            companyId: job.companyId,
+            agencyId,
+            recruiterId: user.id,
+            candidateEmail: identity.email,
+            status: 'PENDING_ADMIN_APPROVAL',
+            notes: dto.notes ?? null,
+            filteredAnswers: JSON.stringify(filteredAnswers),
+            isRoleApprovalBypass: usedBypass,
+          },
+        });
+
+        if (usedBypass) {
+          const quota = await tx.user.updateMany({
+            where: { id: user.id, bypassQuota: { gt: 0 } },
+            data: { bypassQuota: { decrement: 1 } },
+          });
+          if (quota.count !== 1) {
+            throw new PersistBypassExhaustedError();
+          }
+        }
+
+        return created;
       });
+    } catch (err: any) {
+      const uniqueConstraint = String(err?.code ?? '') === 'P2002'
+        && Array.isArray(err?.meta?.target)
+        && err.meta.target.includes('jobId')
+        && err.meta.target.includes('candidateEmail');
+      if (err instanceof PersistConflictError || uniqueConstraint) {
+        this.analytics.track('api_candidate_submission_collision', user.id, {
+          jobId: job.id,
+          email: identity.email,
+        });
+        throw new ConflictException(MESSAGES.COLLISION);
+      }
+      if (err instanceof PersistBypassExhaustedError) {
+        throw new ForbiddenException(MESSAGES.BYPASS_EXHAUSTED);
+      }
+      throw err;
     }
 
     // --- Step 7: post-persist syncs (best-effort) ---
