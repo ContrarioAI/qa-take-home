@@ -166,7 +166,7 @@ export class SubmissionCreationService {
         && err.meta.target.includes('jobId')
         && err.meta.target.includes('candidateEmail');
       if (err instanceof PersistConflictError || uniqueConstraint) {
-        this.analytics.track('api_candidate_submission_collision', user.id, {
+        this.analytics.track('api_candidate_submission_collision', rc.recruiterId, {
           jobId: job.id,
           email: identity.email,
         });
